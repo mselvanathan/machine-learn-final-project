@@ -1,0 +1,136 @@
+---
+title: "Machine Learning Final Assignment"
+author: "Morgan Selvanathan"
+date: "Saturday, July 25, 2015"
+output: html_document
+---
+
+#Title
+Employing accelerometers to quantify how well people perform  certain physical activities to improve health.
+
+#Introduction
+Physical activity with balanced diet is seen as significant factor in contributing to good health.  Many people in the developed world use a variety of inexpensive devices to quantify the activity that they do on a day-to-day basis. They are not merely interested in knowing how often they did a certain activity but how well they did it.  In fact Human Activity Recognition (HAR) as gained  much prominence in recent years and the area of research has wide implications for developing potential applications in elderly monitoring, life log systems for monitoring energy expenditure and for supporting weight-loss programs.
+
+In this study data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants were employed to generate data. Participants were asked to perform barbell lifts correctly and incorrectly in 5 different ways.  The goal of the project is to predict the manner in which they did the exercise. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+#Data sources
+The training data for this project are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. 
+The "classe" variable in the training set is used to predict the manner in which they did the exercise. The report describes how the model was built, how cross validation was performed, and the expected out of sample error. This particular prediction model is further used to predict 20 different test cases. 
+
+#Methodology
+
+The undermentioned libraries were used for the project
+```{r libraries}
+library(caret)
+library(kernlab)
+library(randomForest)
+library(corrplot)
+library(RCurl)
+````
+
+```{r wd, eval = FALSE}
+setwd("c:/ML July 2015")
+```
+
+
+```{r eval = FALSE}
+
+# check if a data folder exists; if not then create one
+if (!file.exists("data")) {dir.create("data")}
+
+# Files from the url were read and written to the data folder
+furl1 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+x <- getURL(furl1, ssl.verifypeer = FALSE)
+destfile1 <- "./data/pml-training.csv"
+out <- read.csv(textConnection(x))
+write.csv(out, file = "./data/pml-training.csv")
+
+furl2 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+x <- getURL(furl2, ssl.verifypeer = FALSE)
+destfile2 <- "./data/pml-testing.csv"
+out2 <- read.csv(textConnection(x))
+write.csv(out2, file = "./data/pml-testing.csv")
+
+# Date of Data download
+dateDownloaded <- date()
+```
+
+```{r}
+# read the csv file for training 
+data_training <- read.csv("./data/pml-training.csv", na.strings= c("NA",""," "))
+```
+
+
+```{r}
+# Data cleansing was done by removing columns with NAs etc
+data_training_NAs <- apply(data_training, 2, function(x) {sum(is.na(x))})
+data_training_clean <- data_training[,which(data_training_NAs == 0)]
+
+# remove identifier columns such as name, timestamps etc
+data_training_clean <- data_training_clean[8:length(data_training_clean)]
+```
+### Splitting date into training and cross validation
+
+```{r}
+# split the cleaned testing data into training and cross validation
+inTrain <- createDataPartition(y = data_training_clean$classe, p = 0.7, list = FALSE)
+training <- data_training_clean[inTrain, ]
+crossval <- data_training_clean[-inTrain, ]
+```
+# Model fitting
+Random forest model was selected to predict the classe variable with all the other variables used as predictors.
+```{r}
+# fit a model to predict the classe using everything else as a predictor
+model <- randomForest(classe ~ ., data = training)
+model
+```
+The OOB error rate of .28% was quite small.
+
+### Cross-validation
+The model was then used to classify the remaining 30% of data. The confusion matrix compared actual classifications compared to the prediction model.
+
+```{r}
+# crossvalidate the model using the remaining 30% of data
+predictCrossVal <- predict(model, crossval)
+confusionMatrix(crossval$classe, predictCrossVal)
+```
+
+This model yielded a 99.59% prediction accuracy. 
+
+### Predictions
+The model was then used to predict the classifications of the testing set data.
+```{r}
+# apply the same treatment to the final testing data
+data_test <- read.csv("./data/pml-testing.csv", na.strings= c("NA",""," "))
+data_test_NAs <- apply(data_test, 2, function(x) {sum(is.na(x))})
+data_test_clean <- data_test[,which(data_test_NAs == 0)]
+data_test_clean <- data_test_clean[8:length(data_test_clean)]
+
+# predicting the classes of the test set
+predictTest <- predict(model, data_test_clean)
+
+```
+```{r results="hide"}
+answers = rep("A", 20)
+predictTest = answers
+setwd("C:/ML July 2015/pml_write_files")
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(answers)
+```
+
+### Conclusions
+The study reveals that it is actually easy to predict the appropriateness of how well anyone can perform physical activities.
